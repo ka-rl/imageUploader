@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    
+    <main class = "app">
+
+        <div class = "header">
+            <h2>Upload Images</h2>
+            <div class = "server-message"></div>
+        </div>
+
+        <div class = "input-div">
+            <p>Drag and drop images here or <span class="browse">Browse</span></p>
+            <input type="file" class="file" multiple="multiple" accept="image/png, image/jpeg, image/jpg">
+        </div>
+
+        <form id="saved-form"> <!--so user can delete images-->
+                <div class="header">
+                    <h3>Saved in Server</h3>
+                    <button type="submit">Delete</button>
+                </div>
+                <div class="saved-div"></div> <!--where saved imaged displayed-->
+        </form>
+
+        <form id="queued-form"> <!--where queued images -->
+            <div class="header">
+                <h3>Queued in Frontend</h3>
+                <button type="submit">Upload</button>
+                <div class="queued-div"></div> <!--where uploading imgs displayed-->
+            </div>
+        </form>
+
+
+    </main>
+
+
+
+    <script>
+        let queuedImagesArray = [],
+        savedForm = document.querySelector("#saved-form"),
+        queuedForm = document.querySelector("#queued-form"),
+        savedDiv = document.querySelector(".saved-div"),
+        queuedDiv = document.querySelector(".queued-div"),
+        inputDiv = document.querySelector(".input-div"),
+        input = document.querySelector(".input-div input"),
+        serverMessage = document.querySelector(".server-message"),
+        savedImages = JSON.parse('<%-JSON.strinify(images)%>')
+        deleteImages = [];
+
+        //saved in server imgs
+        if(savedImages) displaySavedImages()
+
+        function displaySavedImages(){
+            let images = ""
+            savedImages.forEach((image, index) => {
+                images += ` <div class="image">
+                                <img src="http://localhost:3000/uploads/${image}" alt="image">
+                                <span onclick="deleteSavedImage(${index})">&times;</span>
+                            </div>`
+            })
+            savedDiv.innerHTML = images  //adds each image to the queuedDiv Div
+        }               //innerHTML is a string of html code
+        
+        function deleteSavedImage(index){
+            deleteImages.push(savedImages[index])
+            savedImages.splice(index, 1)
+            displaySavedImages()
+        }
+
+        savedForm.addEventListener("submit", (e) => {
+            e.preventDefault()
+            deleteImagesFromServer()
+        })
+
+        function deleteImagesFromServer(){
+            fetch("delete", {
+                method: "PUT",
+                headers: {
+                    "Accept": "application/json, text/plain, */*",
+                    "Content-type" : "application/json"
+                },
+                body : JSON.stringify({deleteImages})
+            })
+
+            .then(response => {
+                if(response.status !== 200) throw Error(response.statusText)
+                deleteImages = []
+                serverMessage.innerHTML = response.statusText
+                serverMessage.style.cssText = "background-color: #d4edda; color: #1b5e20"
+            })
+
+            .catch(error => {
+                serverMessage = error
+                serverMessage.style.cssText = "background-color: #f8d7da; color: #b71c1c"
+            })
+        }
+
+        //queued in frontend imgs
+        input.addEventListener("change", () => { //change eventlistener for browsing file input
+            const files = input.files //from file API which comes with input type file
+            for(let i = 0; i < files.length; i++){ //for every image the user uploads
+                queuedImagesArray.push(files[i]) //push image into queuedimages array
+            }
+            queuedForm.reset() //resets form? why. turn this off later to see
+            displayQueuedImages()
+        })
+
+        inputDiv.addEventListener("drop", (e) =>{ //drop event for drag/drop input
+            e.preventDefault()
+            const files = e.dataTransfer.files //dataTransfer is a type of o
+            for(let i = 0; i<files.length;i++){
+                if(!files[i].type.match("image")){ //if not image
+                    continue
+                }
+                if(queuedImagesArray.every(image => image.name !== files[i].name)){
+                    queuedImagesArray.push(files[i]) //if no image in queued images array matches the current image
+                }
+            }
+            displayQueuedImages()
+        })
+
+        function displayQueuedImages(){
+            let images = ""
+            queuedImagesArray.forEach((image, index) => {
+                images += ` <div class="image">
+                                <img src="${URL.createObjectURL(image)}" alt="image">
+                                <span onclick="deleteQueuedImage(${index})">&times;</span>
+                            </div>`
+            })
+            queuedDiv.innerHTML = images  //adds each image to the queuedDiv Div
+        }               //innerHTML is a string of html code
+
+        function deleteQueuedImage(index){
+            queuedImagesArray.splice(index, 1)
+            displayQueuedImages()
+        }
+
+        queuedForm.addEventListener("submit", (e) => {
+            e.preventDefault() //if we dont preventDefault, it submits form without doing anything else
+            sendQueuedImagesToServer() //but we need it to call this
+        })
+
+        function sendQueuedImagesToServer(){
+            const formData = new FormData() //formdata objects are to package to send to server
+                //it is an array of arrays, key pair values
+            queuedImagesArray.forEach((image, index) =>  {
+                formData.append(`file[${index}]`, image)
+            })
+
+            fetch("upload", {
+                method: "POST",
+                body : formData
+            })
+
+            .then(response => {
+                if(response.status !== 200) throw Error(response.statusText)
+                location.reload()
+            })
+
+            .catch(error => {
+                serverMessage.innerHTML = error
+                serverMessage.style.cssText = "background-color: #f8d7da; color: #b71c1c"
+            })
+        }
+
+
+
+
+    </script>
+
+
+</body>
+</html>
